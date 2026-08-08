@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+
+{% block title %}{{ lead.name }} - Agency System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <a href="/leads" class="text-sm text-muted" style="text-decoration: none;">← Back to Leads</a>
+    <h1 class="page-title mt-2">{{ lead.name }}</h1>
+    <p class="page-subtitle">{{ lead.city or '' }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state or '' }}</p>
+</div>
+
+<div class="grid-2">
+    <!-- Left Column -->
+    <div>
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Contact Info</h3>
+                <span class="badge badge-{% if lead.status == 'closed_won' %}success{% elif lead.status in ['found', 'analyzed'] %}hot{% elif lead.status == 'replied' %}warm{% else %}info{% endif %}">
+                    {{ lead.status.replace('_', ' ').title() }}
+                </span>
+            </div>
+            
+            <div style="display: grid; gap: 12px;">
+                {% if lead.phone %}
+                <div class="flex items-center gap-2">
+                    <span>📞</span>
+                    <a href="tel:{{ lead.phone }}" style="color: var(--text-primary);">{{ lead.phone }}</a>
+                </div>
+                {% endif %}
+                
+                {% if lead.email %}
+                <div class="flex items-center gap-2">
+                    <span>✉️</span>
+                    <a href="mailto:{{ lead.email }}" style="color: var(--text-primary);">{{ lead.email }}</a>
+                </div>
+                {% endif %}
+                
+                {% if lead.website %}
+                <div class="flex items-center gap-2">
+                    <span>🌐</span>
+                    <a href="{{ lead.website }}" target="_blank" style="color: var(--accent);">{{ lead.website }}</a>
+                </div>
+                {% else %}
+                <div class="flex items-center gap-2">
+                    <span class="badge badge-hot">🔥 No Website - Hot Lead!</span>
+                </div>
+                {% endif %}
+                
+                <div class="flex items-center gap-2">
+                    <span>📁</span>
+                    <span>{{ (lead.niche or 'Unknown').replace('_', ' ').title() }}</span>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <span>📍</span>
+                    <span>{{ lead.source or 'Manual entry' }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Update Status -->
+        <div class="card">
+            <h3 class="card-title mb-4">Update Status</h3>
+            <select class="form-select" id="status-select" onchange="updateStatus(this.value)">
+                {% for status in statuses %}
+                <option value="{{ status }}" {% if lead.status == status %}selected{% endif %}>
+                    {{ status.replace('_', ' ').title() }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <!-- Website Analysis -->
+        {% if analysis %}
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">Website Analysis</h3>
+                <div class="score-ring score-{% if analysis.lead_quality == 'EXCELLENT' %}excellent{% elif analysis.lead_quality == 'GOOD' %}good{% elif analysis.lead_quality == 'MAYBE' %}maybe{% else %}skip{% endif %}">
+                    {{ analysis.score }}
+                </div>
+            </div>
+            
+            <p class="mb-4">
+                Lead Quality: <strong>{{ analysis.lead_quality }}</strong>
+                {% if analysis.load_time %}
+                <br>Load Time: {{ "%.2f"|format(analysis.load_time) }}s
+                {% endif %}
+            </p>
+            
+            {% if analysis.issues %}
+            <h4 class="text-sm mb-2">Issues Found:</h4>
+            <ul style="padding-left: 20px;">
+                {% for issue in analysis.issues %}
+                <li class="text-sm text-muted mb-1">{{ issue.description }} (-{{ issue.points }} pts)</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+        {% elif lead.website %}
+        <div class="card">
+            <h3 class="card-title mb-4">Website Analysis</h3>
+            <p class="text-muted mb-4">No analysis yet.</p>
+            <button class="btn btn-primary" onclick="analyzeWebsite()">Analyze Website</button>
+        </div>
+        {% endif %}
+    </div>
+    
+    <!-- Right Column -->
+    <div>
+        <!-- Generate Message -->
+        <div class="card">
+            <h3 class="card-title mb-4">Generate Outreach</h3>
+            
+            <div class="form-group">
+                <label class="form-label">Owner's Name (optional)</label>
+                <input type="text" class="form-input" id="owner-name" placeholder="e.g., Γιάννης / John">
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Language / Γλώσσα</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-2" style="cursor: pointer;">
+                        <input type="radio" name="msg-language" value="el" checked> 🇬🇷 Ελληνικά
+                    </label>
+                    <label class="flex items-center gap-2" style="cursor: pointer;">
+                        <input type="radio" name="msg-language" value="en"> 🇬🇧 English
+                    </label>
+                </div>
+            </div>
+            
+            <div class="flex gap-2 mb-4">
+                <button class="btn btn-primary btn-sm" onclick="generateMessage('email')">📧 Email</button>
+                <button class="btn btn-secondary btn-sm" onclick="generateMessage('phone')">📞 Phone Script</button>
+                <button class="btn btn-secondary btn-sm" onclick="generateMessage('sms')">💬 SMS</button>
+            </div>
+            
+            <div id="message-output" class="hidden">
+                <div class="form-group">
+                    <label class="form-label">Subject</label>
+                    <input type="text" class="form-input" id="msg-subject" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Message</label>
+                    <div class="output-box" id="msg-body"></div>
+                </div>
+                <button class="btn btn-success btn-sm" onclick="copyMessage()">📋 Copy to Clipboard</button>
+            </div>
+        </div>
+        
+        <!-- Notes -->
+        <div class="card">
+            <h3 class="card-title mb-4">Notes</h3>
+            
+            <div class="form-group">
+                <textarea class="form-input" id="new-note" rows="2" placeholder="Add a note..."></textarea>
+            </div>
+            <button class="btn btn-secondary btn-sm mb-4" onclick="addNote()">Add Note</button>
+            
+            <div id="notes-list">
+                {% if notes %}
+                {% for note in notes %}
+                <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                    <p class="text-sm">{{ note.note }}</p>
+                    <p class="text-sm text-muted mt-1">{{ note.created_at }}</p>
+                </div>
+                {% endfor %}
+                {% else %}
+                <p class="text-muted text-sm">No notes yet.</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Outreach History -->
+        <div class="card">
+            <h3 class="card-title mb-4">Outreach History</h3>
+            
+            {% if outreach %}
+            {% for item in outreach %}
+            <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
+                <span class="badge badge-info">{{ item.outreach_type }}</span>
+                {% if item.subject %}<span class="text-sm ml-2">{{ item.subject }}</span>{% endif %}
+                <p class="text-sm text-muted mt-1">{{ item.created_at }}</p>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="text-muted text-sm">No outreach logged yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const leadId = {{ lead.id }};
+
+async function updateStatus(status) {
+    const response = await api(`/api/leads/${leadId}/status`, 'PUT', { status });
+    if (response.success) {
+        location.reload();
+    }
+}
+
+async function analyzeWebsite() {
+    showLoading('Analyzing website...');
+    
+    const response = await api('/api/analyze', 'POST', { 
+        website: '{{ lead.website }}'
+    });
+    
+    hideLoading();
+    
+    if (response.success) {
+        location.reload();
+    } else {
+        alert('Analysis failed: ' + response.error);
+    }
+}
+
+async function generateMessage(type) {
+    const ownerName = document.getElementById('owner-name').value;
+    const language = document.querySelector('[name="msg-language"]:checked').value;
+    
+    // Get issues from analysis if available
+    const issues = [];
+    {% if analysis and analysis.issues %}
+    {% for issue in analysis.issues %}
+    issues.push('{{ issue.description }}');
+    {% endfor %}
+    {% endif %}
+    
+    showLoading(language === 'el' ? 'Δημιουργία μηνύματος...' : 'Generating message...');
+    
+    const response = await api('/api/generate-message', 'POST', {
+        business_name: '{{ lead.name }}',
+        owner_name: ownerName || null,
+        niche: '{{ lead.niche or "" }}',
+        issues: issues,
+        type: type,
+        has_website: {{ 'true' if lead.website else 'false' }},
+        language: language
+    });
+    
+    hideLoading();
+    
+    if (response.success) {
+        document.getElementById('message-output').classList.remove('hidden');
+        
+        if (response.subject) {
+            document.getElementById('msg-subject').value = response.subject;
+            document.getElementById('msg-subject').parentElement.classList.remove('hidden');
+        } else {
+            document.getElementById('msg-subject').parentElement.classList.add('hidden');
+        }
+        
+        document.getElementById('msg-body').textContent = response.body;
+    } else {
+        alert('Failed: ' + response.error);
+    }
+}
+
+function copyMessage() {
+    const subject = document.getElementById('msg-subject').value;
+    const body = document.getElementById('msg-body').textContent;
+    const text = subject ? `Subject: ${subject}\n\n${body}` : body;
+    
+    navigator.clipboard.writeText(text);
+    alert('Copied to clipboard!');
+}
+
+async function addNote() {
+    const noteText = document.getElementById('new-note').value.trim();
+    if (!noteText) return;
+    
+    const response = await api(`/api/leads/${leadId}/note`, 'POST', { note: noteText });
+    
+    if (response.success) {
+        location.reload();
+    }
+}
+</script>
+{% endblock %}

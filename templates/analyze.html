@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+
+{% block title %}Analyze Website - Agency System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🔬 Website Analyzer</h1>
+    <p class="page-subtitle">Score any website to see if they need your help</p>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h3 class="card-title mb-4">Analyze a Website</h3>
+        
+        <form id="analyze-form">
+            <div class="form-group">
+                <label class="form-label">Website URL</label>
+                <input type="url" class="form-input" id="website" name="website" 
+                       placeholder="https://example.com" required>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                Analyze Website
+            </button>
+        </form>
+    </div>
+    
+    <div class="card">
+        <h3 class="card-title mb-4">What We Check</h3>
+        <div class="text-sm" style="line-height: 1.8;">
+            <ul style="padding-left: 20px;">
+                <li><strong>SSL/HTTPS</strong> - Secure connection</li>
+                <li><strong>Mobile Friendly</strong> - Responsive design</li>
+                <li><strong>Load Speed</strong> - Under 3 seconds</li>
+                <li><strong>SEO Basics</strong> - Title, meta, headings</li>
+                <li><strong>Call-to-Action</strong> - Clear next steps</li>
+                <li><strong>Contact Info</strong> - Phone/email visible</li>
+                <li><strong>Modern Design</strong> - No outdated patterns</li>
+            </ul>
+            
+            <p class="mt-4"><strong>Score Meaning:</strong></p>
+            <ul style="padding-left: 20px;">
+                <li><span class="text-danger">0-30</span> = 🔥 Excellent Lead (terrible site)</li>
+                <li><span class="text-warning">31-50</span> = 🌡️ Good Lead (many issues)</li>
+                <li>51-70 = Maybe (some issues)</li>
+                <li><span class="text-success">71-100</span> = Skip (decent site)</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<!-- Results -->
+<div id="results-section" class="hidden">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Analysis Results</h3>
+            <div id="score-badge"></div>
+        </div>
+        
+        <div class="grid-3 mb-4">
+            <div class="stat-card">
+                <div class="stat-value" id="result-score">--</div>
+                <div class="stat-label">Score (lower = better lead)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="result-quality">--</div>
+                <div class="stat-label">Lead Quality</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="result-loadtime">--</div>
+                <div class="stat-label">Load Time</div>
+            </div>
+        </div>
+        
+        <h4 class="mb-2">Issues Found:</h4>
+        <div id="issues-list" class="mb-4"></div>
+        
+        <h4 class="mb-2">Checks Performed:</h4>
+        <div id="checks-list"></div>
+        
+        <div class="mt-4 flex gap-2">
+            <button class="btn btn-primary" id="add-lead-btn">+ Add as Lead</button>
+            <button class="btn btn-secondary" onclick="document.getElementById('results-section').classList.add('hidden')">Clear</button>
+        </div>
+    </div>
+</div>
+
+<!-- Add Lead Modal -->
+<div id="add-lead-modal" class="hidden" style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000;">
+    <div class="card" style="width: 100%; max-width: 500px; margin: 20px;">
+        <h3 class="card-title mb-4">Add as Lead</h3>
+        
+        <form id="add-lead-form">
+            <div class="form-group">
+                <label class="form-label">Business Name</label>
+                <input type="text" class="form-input" id="lead-name" required>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">City</label>
+                    <input type="text" class="form-input" id="lead-city">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Niche</label>
+                    <select class="form-select" id="lead-niche">
+                        <option value="">Select...</option>
+                        <option value="restaurant">Restaurant</option>
+                        <option value="barbershop">Barbershop</option>
+                        <option value="salon">Salon</option>
+                        <option value="plumber">Plumber</option>
+                        <option value="electrician">Electrician</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <button type="submit" class="btn btn-success">Save Lead</button>
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentWebsite = '';
+let currentAnalysis = null;
+
+document.getElementById('analyze-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    currentWebsite = document.getElementById('website').value;
+    
+    showLoading('Analyzing website...');
+    
+    try {
+        const response = await api('/api/analyze', 'POST', { website: currentWebsite });
+        
+        hideLoading();
+        
+        if (response.error) {
+            alert('Error: ' + response.error);
+            return;
+        }
+        
+        currentAnalysis = response;
+        renderResults(response);
+        
+    } catch (error) {
+        hideLoading();
+        alert('Analysis failed: ' + error.message);
+    }
+});
+
+function renderResults(data) {
+    const section = document.getElementById('results-section');
+    
+    // Score
+    document.getElementById('result-score').textContent = data.score;
+    document.getElementById('result-quality').textContent = data.lead_quality;
+    document.getElementById('result-loadtime').textContent = data.load_time ? `${data.load_time.toFixed(2)}s` : 'N/A';
+    
+    // Score badge
+    const quality = data.lead_quality.toLowerCase();
+    const colors = { excellent: 'hot', good: 'warm', maybe: 'info', skip: 'success' };
+    document.getElementById('score-badge').innerHTML = `
+        <span class="badge badge-${colors[quality] || 'info'}">${data.lead_quality}</span>
+    `;
+    
+    // Issues
+    const issuesList = document.getElementById('issues-list');
+    if (data.issues && data.issues.length > 0) {
+        issuesList.innerHTML = data.issues.map(issue => `
+            <div style="padding: 8px 12px; background: var(--bg-dark); border-radius: 6px; margin-bottom: 8px;">
+                <span class="text-warning">⚠️</span> ${issue.description}
+                <span class="text-muted text-sm">(-${issue.points} pts)</span>
+            </div>
+        `).join('');
+    } else {
+        issuesList.innerHTML = '<p class="text-muted">No major issues found.</p>';
+    }
+    
+    // Checks
+    const checksList = document.getElementById('checks-list');
+    if (data.checks) {
+        checksList.innerHTML = Object.entries(data.checks).map(([key, value]) => `
+            <span class="badge ${value ? 'badge-success' : 'badge-hot'}" style="margin: 4px;">
+                ${value ? '✓' : '✗'} ${key.replace(/_/g, ' ')}
+            </span>
+        `).join('');
+    }
+    
+    section.classList.remove('hidden');
+}
+
+document.getElementById('add-lead-btn').addEventListener('click', () => {
+    document.getElementById('add-lead-modal').classList.remove('hidden');
+    document.getElementById('add-lead-modal').style.display = 'flex';
+});
+
+function closeModal() {
+    document.getElementById('add-lead-modal').classList.add('hidden');
+    document.getElementById('add-lead-modal').style.display = 'none';
+}
+
+document.getElementById('add-lead-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const data = {
+        name: document.getElementById('lead-name').value,
+        website: currentWebsite,
+        city: document.getElementById('lead-city').value,
+        niche: document.getElementById('lead-niche').value,
+        source: 'website_analyzer'
+    };
+    
+    const response = await api('/api/leads', 'POST', data);
+    
+    if (response.success) {
+        alert('Lead saved!');
+        closeModal();
+        window.location.href = `/lead/${response.lead_id}`;
+    } else {
+        alert('Failed to save: ' + response.error);
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}All Leads - Agency System{% endblock %}
+
+{% block content %}
+<div class="page-header flex justify-between items-center">
+    <div>
+        <h1 class="page-title">All Leads</h1>
+        <p class="page-subtitle">{{ leads|length }} leads in your CRM</p>
+    </div>
+    <a href="/search" class="btn btn-primary">+ Find New Leads</a>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <div class="flex gap-2">
+            <select class="form-select" style="width: auto;" onchange="filterByStatus(this.value)">
+                <option value="">All Statuses</option>
+                {% for status in statuses %}
+                <option value="{{ status }}" {% if current_status == status %}selected{% endif %}>{{ status.replace('_', ' ').title() }}</option>
+                {% endfor %}
+            </select>
+            
+            <select class="form-select" style="width: auto;" onchange="filterByNiche(this.value)">
+                <option value="">All Niches</option>
+                {% for niche in niches %}
+                <option value="{{ niche }}" {% if current_niche == niche %}selected{% endif %}>{{ niche.replace('_', ' ').title() }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+    
+    {% if leads %}
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Business</th>
+                    <th>Contact</th>
+                    <th>Website</th>
+                    <th>Niche</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for lead in leads %}
+                <tr>
+                    <td>
+                        <strong>{{ lead.name }}</strong>
+                        <div class="text-sm text-muted">{{ lead.city or '' }}{% if lead.city and lead.state %}, {% endif %}{{ lead.state or '' }}</div>
+                    </td>
+                    <td>
+                        {% if lead.phone %}<div class="text-sm">📞 {{ lead.phone }}</div>{% endif %}
+                        {% if lead.email %}<div class="text-sm">✉️ {{ lead.email }}</div>{% endif %}
+                    </td>
+                    <td>
+                        {% if lead.website %}
+                        <a href="{{ lead.website }}" target="_blank" class="text-sm" style="color: var(--accent);">
+                            {{ lead.website[:25] }}{% if lead.website|length > 25 %}...{% endif %}
+                        </a>
+                        {% else %}
+                        <span class="badge badge-hot">No Website</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="text-sm">{{ (lead.niche or 'Unknown').replace('_', ' ').title() }}</span>
+                    </td>
+                    <td>
+                        <span class="badge badge-{% if lead.status == 'closed_won' %}success{% elif lead.status in ['found', 'analyzed'] %}hot{% elif lead.status == 'replied' %}warm{% else %}info{% endif %}">
+                            {{ lead.status.replace('_', ' ').title() }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="/lead/{{ lead.id }}" class="btn btn-secondary btn-sm">View</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <h3>No leads yet</h3>
+        <p>Start by searching for businesses in your target area.</p>
+        <a href="/search" class="btn btn-primary mt-4">Find Businesses</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function filterByStatus(status) {
+    const url = new URL(window.location);
+    if (status) {
+        url.searchParams.set('status', status);
+    } else {
+        url.searchParams.delete('status');
+    }
+    window.location = url;
+}
+
+function filterByNiche(niche) {
+    const url = new URL(window.location);
+    if (niche) {
+        url.searchParams.set('niche', niche);
+    } else {
+        url.searchParams.delete('niche');
+    }
+    window.location = url;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,300 @@
+{% extends "base.html" %}
+
+{% block title %}Generate Messages - Agency System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">📧 Message Generator</h1>
+    <p class="page-subtitle">Create personalized outreach for any business</p>
+</div>
+
+<div class="grid-2">
+    <div class="card">
+        <h3 class="card-title mb-4">Generate Outreach</h3>
+        
+        <form id="message-form">
+            <div class="form-group">
+                <label class="form-label">Select Lead (optional)</label>
+                <select class="form-select" id="lead-select" onchange="populateFromLead()">
+                    <option value="">-- Or enter manually below --</option>
+                    {% for lead in leads %}
+                    <option value="{{ lead.id }}" data-name="{{ lead.name }}" data-niche="{{ lead.niche or '' }}" data-website="{{ lead.website or '' }}">
+                        {{ lead.name }} {% if lead.city %}({{ lead.city }}){% endif %}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Business Name *</label>
+                <input type="text" class="form-input" id="business-name" required placeholder="Joe's Barbershop">
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Owner's Name</label>
+                    <input type="text" class="form-input" id="owner-name" placeholder="Joe / Γιάννης">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Business Niche</label>
+                    <select class="form-select" id="niche">
+                        <option value="">Select...</option>
+                        <option value="barbershop">Barbershop / Κουρείο</option>
+                        <option value="salon">Salon / Κομμωτήριο</option>
+                        <option value="restaurant">Restaurant / Εστιατόριο</option>
+                        <option value="cafe">Cafe / Καφετέρια</option>
+                        <option value="gym">Gym / Γυμναστήριο</option>
+                        <option value="dentist">Dentist / Οδοντίατρος</option>
+                        <option value="plumber">Plumber / Υδραυλικός</option>
+                        <option value="electrician">Electrician / Ηλεκτρολόγος</option>
+                        <option value="real_estate">Real Estate / Μεσιτικό</option>
+                        <option value="lawyer">Lawyer / Δικηγόρος</option>
+                        <option value="accountant">Accountant / Λογιστής</option>
+                        <option value="other">Other / Άλλο</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Language / Γλώσσα</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-2" style="cursor: pointer;">
+                        <input type="radio" name="language" value="el" checked> 🇬🇷 Ελληνικά (Greek)
+                    </label>
+                    <label class="flex items-center gap-2" style="cursor: pointer;">
+                        <input type="radio" name="language" value="en"> 🇬🇧 English
+                    </label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Has Website?</label>
+                <div class="flex gap-4">
+                    <label class="flex items-center gap-2">
+                        <input type="radio" name="has-website" value="yes" checked> Yes (mention issues)
+                    </label>
+                    <label class="flex items-center gap-2">
+                        <input type="radio" name="has-website" value="no"> No website
+                    </label>
+                </div>
+            </div>
+            
+            <div id="issues-section">
+                <div class="form-group">
+                    <label class="form-label">Website Issues (optional)</label>
+                    <div class="text-sm text-muted mb-2">Select issues to mention:</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="issue-check" value="No SSL/HTTPS security"> No SSL
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="issue-check" value="Not mobile-friendly"> Not mobile-friendly
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="issue-check" value="Slow loading speed"> Slow loading
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="issue-check" value="Missing SEO basics"> Missing SEO
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="issue-check" value="Outdated design"> Outdated design
+                        </label>
+                        <label class="flex items-center gap-2 text-sm">
+                            <input type="checkbox" class="issue-check" value="No clear call-to-action"> No CTA
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Message Type</label>
+                <div class="tabs" style="border: none; margin: 0;">
+                    <div class="tab active" data-type="email" onclick="selectType('email')">📧 Email</div>
+                    <div class="tab" data-type="phone" onclick="selectType('phone')">📞 Phone</div>
+                    <div class="tab" data-type="sms" onclick="selectType('sms')">💬 SMS</div>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+                Generate Message
+            </button>
+        </form>
+    </div>
+    
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">Generated Message</h3>
+            <button class="btn btn-success btn-sm" id="copy-btn" onclick="copyMessage()" disabled>
+                📋 Copy
+            </button>
+        </div>
+        
+        <div id="output-placeholder" class="empty-state">
+            <p>Your message will appear here</p>
+        </div>
+        
+        <div id="output-content" class="hidden">
+            <div id="subject-group" class="form-group">
+                <label class="form-label">Subject Line</label>
+                <input type="text" class="form-input" id="output-subject" readonly>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Message</label>
+                <div class="output-box" id="output-body" style="min-height: 200px;"></div>
+            </div>
+            
+            <div class="flex gap-2">
+                <button class="btn btn-secondary btn-sm" onclick="regenerate()">🔄 Regenerate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mt-4">
+    <h3 class="card-title mb-4">💡 Outreach Tips</h3>
+    <div class="grid-3 text-sm">
+        <div>
+            <strong>📧 Cold Email</strong>
+            <ul style="padding-left: 16px; margin-top: 8px; color: var(--text-secondary);">
+                <li>Keep subject under 50 chars</li>
+                <li>Personalize the opening</li>
+                <li>One clear CTA</li>
+                <li>Send 8-10am or 2-4pm</li>
+            </ul>
+        </div>
+        <div>
+            <strong>📞 Cold Call</strong>
+            <ul style="padding-left: 16px; margin-top: 8px; color: var(--text-secondary);">
+                <li>Call 10am-11am or 4pm-5pm</li>
+                <li>Ask if it's a good time</li>
+                <li>Get to value quickly</li>
+                <li>Book the meeting, not the sale</li>
+            </ul>
+        </div>
+        <div>
+            <strong>💬 SMS</strong>
+            <ul style="padding-left: 16px; margin-top: 8px; color: var(--text-secondary);">
+                <li>Keep it super short</li>
+                <li>Sound human, not salesy</li>
+                <li>Include your name</li>
+                <li>One question only</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentType = 'email';
+
+function selectType(type) {
+    currentType = type;
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelector(`[data-type="${type}"]`).classList.add('active');
+}
+
+function populateFromLead() {
+    const select = document.getElementById('lead-select');
+    const option = select.options[select.selectedIndex];
+    
+    if (option.value) {
+        document.getElementById('business-name').value = option.dataset.name || '';
+        document.getElementById('niche').value = option.dataset.niche || '';
+        
+        const hasWebsite = option.dataset.website ? 'yes' : 'no';
+        document.querySelector(`[name="has-website"][value="${hasWebsite}"]`).checked = true;
+        toggleIssues();
+    }
+}
+
+document.querySelectorAll('[name="has-website"]').forEach(radio => {
+    radio.addEventListener('change', toggleIssues);
+});
+
+function toggleIssues() {
+    const hasWebsite = document.querySelector('[name="has-website"]:checked').value === 'yes';
+    document.getElementById('issues-section').style.display = hasWebsite ? 'block' : 'none';
+}
+
+document.getElementById('message-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await generateMessage();
+});
+
+async function generateMessage() {
+    const businessName = document.getElementById('business-name').value;
+    const ownerName = document.getElementById('owner-name').value;
+    const niche = document.getElementById('niche').value;
+    const hasWebsite = document.querySelector('[name="has-website"]:checked').value === 'yes';
+    const language = document.querySelector('[name="language"]:checked').value;
+    
+    const issues = [];
+    document.querySelectorAll('.issue-check:checked').forEach(cb => {
+        issues.push(cb.value);
+    });
+    
+    showLoading(language === 'el' ? 'Δημιουργία μηνύματος...' : 'Generating message...');
+    
+    try {
+        const response = await api('/api/generate-message', 'POST', {
+            business_name: businessName,
+            owner_name: ownerName || null,
+            niche: niche,
+            issues: issues,
+            type: currentType,
+            has_website: hasWebsite,
+            language: language
+        });
+        
+        hideLoading();
+        
+        if (response.success) {
+            renderOutput(response);
+        } else {
+            alert('Error: ' + response.error);
+        }
+        
+    } catch (error) {
+        hideLoading();
+        alert('Failed: ' + error.message);
+    }
+}
+
+function renderOutput(data) {
+    document.getElementById('output-placeholder').classList.add('hidden');
+    document.getElementById('output-content').classList.remove('hidden');
+    document.getElementById('copy-btn').disabled = false;
+    
+    if (data.subject) {
+        document.getElementById('subject-group').style.display = 'block';
+        document.getElementById('output-subject').value = data.subject;
+    } else {
+        document.getElementById('subject-group').style.display = 'none';
+    }
+    
+    document.getElementById('output-body').textContent = data.body;
+}
+
+function copyMessage() {
+    const subject = document.getElementById('output-subject').value;
+    const body = document.getElementById('output-body').textContent;
+    
+    let text = body;
+    if (subject && document.getElementById('subject-group').style.display !== 'none') {
+        text = `Subject: ${subject}\n\n${body}`;
+    }
+    
+    navigator.clipboard.writeText(text);
+    
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+}
+
+function regenerate() {
+    generateMessage();
+}
+</script>
+{% endblock %}

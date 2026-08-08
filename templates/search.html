@@ -1,0 +1,263 @@
+{% extends "base.html" %}
+
+{% block title %}Find Businesses - Agency System{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1 class="page-title">🔍 Find Businesses</h1>
+    <p class="page-subtitle">Search for businesses that need websites in any city</p>
+</div>
+
+{% if not has_api_key %}
+<div class="alert alert-warning">
+    <strong>⚠️ API Key Required</strong><br>
+    To search for businesses, you need a Google Places API key.<br>
+    <ol style="margin-top: 10px; padding-left: 20px;">
+        <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: inherit; text-decoration: underline;">Google Cloud Console</a></li>
+        <li>Create a project and enable Places API + Geocoding API</li>
+        <li>Create an API key</li>
+        <li>Add it to <code>config.py</code>: <code>GOOGLE_PLACES_API_KEY = "your-key"</code></li>
+    </ol>
+    <p style="margin-top: 10px;">Cost: ~$17 per 1,000 searches (first $200/month free)</p>
+</div>
+{% endif %}
+
+<div class="grid-2">
+    <div class="card">
+        <h3 class="card-title mb-4">Search Parameters</h3>
+        
+        <form id="search-form">
+            <div class="form-group">
+                <label class="form-label">Business Type</label>
+                <select class="form-select" id="niche" name="niche" required>
+                    <option value="">Select a niche...</option>
+                    {% for niche in niches %}
+                    <option value="{{ niche }}">{{ niche.replace('_', ' ').title() }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">City</label>
+                    <input type="text" class="form-input" id="city" name="city" placeholder="e.g., Austin" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">State (optional)</label>
+                    <input type="text" class="form-input" id="state" name="state" placeholder="e.g., TX" maxlength="2">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label class="form-label">Max Results</label>
+                <select class="form-select" id="max_results" name="max_results">
+                    <option value="10">10 businesses</option>
+                    <option value="20" selected>20 businesses</option>
+                    <option value="30">30 businesses</option>
+                    <option value="50">50 businesses</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="width: 100%;" {% if not has_api_key %}disabled{% endif %}>
+                <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                Search Businesses
+            </button>
+        </form>
+    </div>
+    
+    <div class="card">
+        <h3 class="card-title mb-4">💡 Tips</h3>
+        <div class="text-sm text-secondary" style="line-height: 1.8;">
+            <p><strong>Best niches to target:</strong></p>
+            <ul style="padding-left: 20px; margin: 10px 0;">
+                <li>Barbershops & Salons</li>
+                <li>Restaurants & Cafes</li>
+                <li>Plumbers & Electricians</li>
+                <li>Landscaping & Cleaning</li>
+                <li>Auto Repair Shops</li>
+            </ul>
+            
+            <p class="mt-4"><strong>What we look for:</strong></p>
+            <ul style="padding-left: 20px; margin: 10px 0;">
+                <li>🔥 <strong>HOT</strong> - No website at all</li>
+                <li>🌡️ <strong>WARM</strong> - Bad/outdated website</li>
+                <li>❄️ <strong>COLD</strong> - Good website (skip)</li>
+            </ul>
+            
+            <p class="mt-4">Businesses with more reviews = more established = better clients!</p>
+        </div>
+    </div>
+</div>
+
+<!-- Results Section (hidden initially) -->
+<div id="results-section" class="hidden">
+    <div class="card">
+        <div class="card-header">
+            <h3 class="card-title">
+                <span id="results-title">Search Results</span>
+            </h3>
+            <div class="flex gap-2">
+                <button type="button" class="btn btn-success btn-sm" id="save-selected-btn" disabled>
+                    Save Selected to CRM
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm" id="select-all-btn">
+                    Select All Hot/Warm
+                </button>
+            </div>
+        </div>
+        
+        <div id="results-summary" class="flex gap-4 mb-4">
+            <span class="badge badge-hot">🔥 <span id="hot-count">0</span> Hot</span>
+            <span class="badge badge-warm">🌡️ <span id="warm-count">0</span> Warm</span>
+            <span class="badge badge-cold">❄️ <span id="cold-count">0</span> Cold</span>
+        </div>
+        
+        <div id="results-list"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let searchResults = [];
+let selectedLeads = new Set();
+
+document.getElementById('search-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const niche = document.getElementById('niche').value;
+    const city = document.getElementById('city').value;
+    const state = document.getElementById('state').value;
+    const maxResults = document.getElementById('max_results').value;
+    
+    showLoading(`Searching for ${niche} businesses in ${city}...`);
+    
+    try {
+        const response = await api('/api/search', 'POST', {
+            niche,
+            city,
+            state,
+            max_results: parseInt(maxResults)
+        });
+        
+        hideLoading();
+        
+        if (response.error) {
+            alert('Error: ' + response.error);
+            return;
+        }
+        
+        searchResults = response.leads;
+        renderResults();
+        
+    } catch (error) {
+        hideLoading();
+        alert('Search failed: ' + error.message);
+    }
+});
+
+function renderResults() {
+    const section = document.getElementById('results-section');
+    const list = document.getElementById('results-list');
+    
+    if (searchResults.length === 0) {
+        list.innerHTML = '<div class="empty-state"><p>No businesses found. Try a different location or niche.</p></div>';
+        section.classList.remove('hidden');
+        return;
+    }
+    
+    // Count by priority
+    const hot = searchResults.filter(l => l.priority === 'hot').length;
+    const warm = searchResults.filter(l => l.priority === 'warm').length;
+    const cold = searchResults.filter(l => l.priority === 'cold').length;
+    
+    document.getElementById('hot-count').textContent = hot;
+    document.getElementById('warm-count').textContent = warm;
+    document.getElementById('cold-count').textContent = cold;
+    document.getElementById('results-title').textContent = `Found ${searchResults.length} Businesses`;
+    
+    // Render lead cards
+    list.innerHTML = searchResults.map((lead, index) => `
+        <div class="lead-card" data-index="${index}" onclick="toggleSelect(${index})">
+            <div class="lead-name">
+                <input type="checkbox" id="check-${index}" onclick="event.stopPropagation(); toggleSelect(${index})" ${selectedLeads.has(index) ? 'checked' : ''}>
+                <span class="badge badge-${lead.priority}">${lead.priority === 'hot' ? '🔥 HOT' : lead.priority === 'warm' ? '🌡️ WARM' : '❄️ COLD'}</span>
+                ${lead.name}
+            </div>
+            <div class="lead-meta">
+                <span>📍 ${lead.address}</span>
+                ${lead.phone ? `<span>📞 ${lead.phone}</span>` : ''}
+                ${lead.website ? `<span>🌐 ${lead.website}</span>` : '<span class="text-danger">❌ No website</span>'}
+                <span>⭐ ${lead.rating || 'N/A'} (${lead.review_count || 0} reviews)</span>
+            </div>
+        </div>
+    `).join('');
+    
+    section.classList.remove('hidden');
+    updateSaveButton();
+}
+
+function toggleSelect(index) {
+    const card = document.querySelector(`[data-index="${index}"]`);
+    const checkbox = document.getElementById(`check-${index}`);
+    
+    if (selectedLeads.has(index)) {
+        selectedLeads.delete(index);
+        card.classList.remove('selected');
+        checkbox.checked = false;
+    } else {
+        selectedLeads.add(index);
+        card.classList.add('selected');
+        checkbox.checked = true;
+    }
+    
+    updateSaveButton();
+}
+
+function updateSaveButton() {
+    const btn = document.getElementById('save-selected-btn');
+    btn.disabled = selectedLeads.size === 0;
+    btn.textContent = selectedLeads.size > 0 
+        ? `Save ${selectedLeads.size} to CRM` 
+        : 'Save Selected to CRM';
+}
+
+document.getElementById('select-all-btn').addEventListener('click', () => {
+    searchResults.forEach((lead, index) => {
+        if (lead.priority === 'hot' || lead.priority === 'warm') {
+            selectedLeads.add(index);
+            const card = document.querySelector(`[data-index="${index}"]`);
+            const checkbox = document.getElementById(`check-${index}`);
+            if (card) card.classList.add('selected');
+            if (checkbox) checkbox.checked = true;
+        }
+    });
+    updateSaveButton();
+});
+
+document.getElementById('save-selected-btn').addEventListener('click', async () => {
+    if (selectedLeads.size === 0) return;
+    
+    const leadsToSave = Array.from(selectedLeads).map(i => searchResults[i]);
+    
+    showLoading(`Saving ${leadsToSave.length} leads...`);
+    
+    try {
+        const response = await api('/api/leads/save-batch', 'POST', { leads: leadsToSave });
+        hideLoading();
+        
+        if (response.success) {
+            alert(`✓ Saved ${response.saved} leads to CRM!`);
+            // Clear selection
+            selectedLeads.clear();
+            document.querySelectorAll('.lead-card').forEach(c => c.classList.remove('selected'));
+            document.querySelectorAll('[type="checkbox"]').forEach(c => c.checked = false);
+            updateSaveButton();
+        }
+    } catch (error) {
+        hideLoading();
+        alert('Failed to save: ' + error.message);
+    }
+});
+</script>
+{% endblock %}
