@@ -131,7 +131,7 @@ def messages_page():
 @app.route('/api/search', methods=['POST'])
 def api_search():
     """Search for businesses."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     niche = data.get('niche')
     city = data.get('city')
     state = data.get('state', '')
@@ -173,7 +173,7 @@ def api_search():
 @app.route('/api/analyze', methods=['POST'])
 def api_analyze():
     """Analyze a website."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     website = data.get('website')
     lead_id = data.get('lead_id')
 
@@ -205,7 +205,7 @@ def api_analyze():
 @app.route('/api/generate-message', methods=['POST'])
 def api_generate_message():
     """Generate outreach message."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     
     business_name = data.get('business_name')
     owner_name = data.get('owner_name')
@@ -245,7 +245,9 @@ def api_generate_message():
                 'success': True,
                 'body': msg.body
             })
-        
+
+        return jsonify({'error': f'Unknown message type: {message_type}'}), 400
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -253,7 +255,7 @@ def api_generate_message():
 @app.route('/api/leads', methods=['POST'])
 def api_add_lead():
     """Add a new lead."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     
     db = LeadDatabase()
     lead_id = db.add_lead(
@@ -274,14 +276,14 @@ def api_add_lead():
 @app.route('/api/leads/<int:lead_id>/status', methods=['PUT'])
 def api_update_status(lead_id):
     """Update lead status."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     new_status = data.get('status')
     
     if new_status not in LEAD_STATUSES:
         return jsonify({'error': 'Invalid status'}), 400
-    
+
     db = LeadDatabase()
-    db.update_lead_status(lead_id, new_status)
+    db.update_status(lead_id, new_status)
     db.close()
     
     return jsonify({'success': True})
@@ -290,7 +292,7 @@ def api_update_status(lead_id):
 @app.route('/api/leads/<int:lead_id>/note', methods=['POST'])
 def api_add_note(lead_id):
     """Add note to lead."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     note = data.get('note')
     
     if not note:
@@ -306,7 +308,7 @@ def api_add_note(lead_id):
 @app.route('/api/leads/save-batch', methods=['POST'])
 def api_save_batch():
     """Save multiple leads from search."""
-    data = request.json
+    data = request.get_json(silent=True) or {}
     leads = data.get('leads', [])
     
     db = LeadDatabase()
@@ -329,6 +331,33 @@ def api_save_batch():
     db.close()
     
     return jsonify({'success': True, 'saved': saved})
+
+
+@app.route('/api/leads/<int:lead_id>/outreach', methods=['POST'])
+def api_log_outreach(lead_id):
+    """Log an outreach attempt and advance the lead's status."""
+    data = request.get_json(silent=True) or {}
+    outreach_type = data.get('type')
+
+    if outreach_type not in ('email', 'phone', 'sms', 'linkedin'):
+        return jsonify({'error': 'Invalid outreach type'}), 400
+
+    db = LeadDatabase()
+    lead = db.get_lead(lead_id)
+    if not lead:
+        db.close()
+        return jsonify({'error': 'Lead not found'}), 404
+
+    db.log_outreach(lead_id, outreach_type, subject=data.get('subject'), body=data.get('body'))
+
+    # Advance the pipeline: found/analyzed -> contacted, contacted -> followed_up
+    if lead['status'] in ('found', 'analyzed'):
+        db.update_status(lead_id, 'contacted')
+    elif lead['status'] == 'contacted':
+        db.update_status(lead_id, 'followed_up')
+
+    db.close()
+    return jsonify({'success': True})
 
 
 # =============================================================================

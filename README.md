@@ -1,85 +1,132 @@
 # LMLabs Client Acquisition System
 
-Your complete outbound sales pipeline. Find businesses, analyze their websites, generate outreach messages, track leads, close deals.
+Your outbound sales pipeline for a web-design agency: **find** local businesses that need a website, **score** their current site, **generate** personalized outreach (English or Greek), **send** it, and **track** every lead to close.
 
-## Quick Start
+---
+
+## 1. Setup (once)
 
 ```bash
-# 1. Setup (run once)
+# Install dependencies + create the database
 python setup.py
-
-# 2. Add leads manually
-python run.py add-lead --name "Taverna Olympus" --phone "+30..." --city Thessaloniki --niche restaurant
-
-# 3. Generate outreach message
-python run.py generate-message --lead-id 1 --type email
-
-# 4. Or find leads automatically (requires Google Places API key)
-python run.py find-leads --niche restaurant --city Thessaloniki --save
 ```
 
-## Commands
+### Add your Google Places API key (kept out of Git)
+
+The app reads your key from **`config_local.py`**, which is gitignored and never committed.
+
+```bash
+# copy the template, then edit it
+Copy-Item config_local.example.py config_local.py    # PowerShell
+```
+
+Open `config_local.py` and paste your key:
+
+```python
+GOOGLE_PLACES_API_KEY = "AIza...your-real-key"
+```
+
+> Don't have a key yet? Create one at <https://console.cloud.google.com/apis/credentials>, then enable **Places API** and **Geocoding API**. Restrict the key to those two APIs plus your IP. First $200/month of usage is free (~12,000 searches).
+>
+> Prefer an environment variable instead of a file? Set `GOOGLE_PLACES_API_KEY` in your shell and skip `config_local.py`. You can run everything except automated search without a key.
+
+### Personalize your details
+
+Edit `config.py` so your outreach is signed correctly — these values go straight into the messages:
+
+| Setting | What it is |
+|---------|-----------|
+| `YOUR_NAME` | The person who signs the emails (e.g., `"Levan"`) |
+| `AGENCY_NAME` | Your agency / brand |
+| `AGENCY_EMAIL`, `AGENCY_PHONE` | Your contact details |
+| `AGENCY_CALENDLY` | **Set a real Calendly link** — it's the call-to-action in every message |
+| `PACKAGES` | Your pricing tiers |
+
+---
+
+## 2. Run the web dashboard (recommended)
+
+```bash
+python app.py
+```
+
+Open <http://localhost:5000>. From there you can:
+
+- **Find Businesses** — search any niche + city; results are ranked 🔥 Hot (no website) → 🌡️ Warm (bad site) → ❄️ Cold. Select the ones you want and save them to your CRM.
+- **Analyze Website** — score any site 0–100 (lower = better lead) and see exactly what's wrong.
+- **All Leads** — filter your pipeline by status and niche.
+- **Lead page** — analyze the site, **generate outreach** (📧 email / 📞 phone script / 💬 SMS) in 🇬🇷 Greek or 🇬🇧 English, copy it, then hit **✓ Mark as Sent** to log it and move the lead forward. Add notes and update status as you go.
+- **Generate Messages** — craft a message for any business without saving it first.
+
+> Auto-reload while developing: `set FLASK_DEBUG=1` (PowerShell: `$env:FLASK_DEBUG=1`) before `python app.py`. Leave it off for normal use.
+
+---
+
+## 3. The daily outreach loop
+
+1. **Find** — search 2–3 niches in your city, save the Hot/Warm leads.
+2. **Score** — analyze their websites (skip the ones with good sites).
+3. **Reach out** — open a lead, generate the email/phone/SMS, send it, click **Mark as Sent**.
+4. **Track** — the lead advances `found → analyzed → contacted → followed_up`. Update status as they reply.
+5. **Follow up** — work the leads sitting in `contacted` with no reply.
+6. **Target** — ~20 businesses contacted per day.
+
+Lead scoring: **0–30** 🔥 excellent lead (terrible site) · **31–50** 🌡️ good · **51–70** maybe · **71–100** skip (their site is fine).
+
+---
+
+## 4. Command line (optional)
+
+Everything the dashboard does is also available via `run.py`:
 
 | Command | What it does |
 |---------|-------------|
-| `python setup.py` | One-time setup — installs deps, creates database |
-| `python run.py find-leads --niche X --city Y --save` | Search Google for businesses, save hot leads |
-| `python run.py add-lead --name "X" --city Y --niche Z` | Add a lead manually |
-| `python run.py list` | View all leads |
-| `python run.py analyze --website example.com` | Score a website (0-100, lower = better lead) |
-| `python run.py analyze-all` | Analyze all unanalyzed leads |
-| `python run.py generate-message --lead-id 1 --type email` | Generate cold email |
-| `python run.py generate-message --lead-id 1 --type all` | Generate all message types |
-| `python run.py update-status --lead-id 1 --status contacted` | Update lead status |
-| `python run.py stats` | View pipeline stats |
-| `python run.py outreach` | See leads ready for outreach |
-| `python run.py templates` | List all outreach templates |
-| `python run.py export --file leads.csv` | Export leads to CSV |
-| `python app.py` | Launch web dashboard at localhost:5000 |
+| `python run.py find-leads --niche restaurant --city Thessaloniki --save` | Search Google, save hot/warm leads |
+| `python run.py add-lead --name "Taverna Olympus" --city Thessaloniki --niche taverna` | Add a lead manually |
+| `python run.py list` | List all leads |
+| `python run.py analyze --website example.com --lead-id 1` | Score a site (and save it to the lead) |
+| `python run.py analyze-all` | Analyze every unanalyzed lead |
+| `python run.py generate-message --lead-id 1 --type all` | Generate every message type |
+| `python run.py log-outreach --lead-id 1 --type email` | Record an outreach attempt |
+| `python run.py update-status --lead-id 1 --status contacted` | Update a lead's status |
+| `python run.py stats` | Pipeline stats |
+| `python run.py outreach` | Leads ready for outreach / follow-up |
+| `python run.py export --file leads.csv` | Export to CSV |
 
-## Automated Lead Search
-
-To use `find-leads`, you need a Google Places API key:
-
-1. Go to https://console.cloud.google.com/apis/credentials
-2. Create a project and enable Places API + Geocoding API
-3. Create an API key
-4. Either edit `config.py` or set environment variable:
-   ```bash
-   export GOOGLE_PLACES_API_KEY=your-key-here
-   ```
-
-Cost: First $200/month free (covers ~12,000 searches).
-
-## Daily Workflow
-
-1. **Morning**: Run `find-leads` for 2-3 niches in your city, or find leads manually on Google Maps
-2. **Score**: Run `analyze-all` to score their websites
-3. **Outreach**: Generate messages for top leads and send them
-4. **Track**: Update statuses as you hear back
-5. **Follow up**: Check `outreach` command for leads needing follow-up
-6. **Target**: 20 businesses contacted per day
+---
 
 ## Pricing (EUR)
 
 | Package | Price | Pages | Delivery |
 |---------|-------|-------|----------|
-| Starter | €700 | 1 page | 5-7 days |
-| Business | €1,400 | 5 pages | 1-2 weeks |
-| Growth | €2,500+ | 8-10 pages | 2-3 weeks |
+| Starter | €700 | 1 page | 5–7 days |
+| Business | €1,400 | 5 pages | 1–2 weeks |
+| Growth | €2,500+ | 8–10 pages | 2–3 weeks |
 
-## File Structure
+Edit these in `config.py` (`PACKAGES`).
+
+---
+
+## Project layout
 
 ```
-├── setup.py          # One-time setup
-├── run.py            # CLI entry point
-├── app.py            # Web dashboard (Flask)
-├── config.py         # Your settings (edit this)
-├── requirements.txt  # Python dependencies
-├── crm/              # CRM database + CLI
-├── leads/            # Lead finder, website analyzer, message generator
-├── outreach/         # Email/phone/SMS templates
-├── offers/           # Pricing packages
-├── templates/        # Web UI templates (Flask)
-└── data/             # Database + exports (created by setup)
+├── setup.py                 # One-time setup (deps + database)
+├── app.py                   # Web dashboard (Flask) — the main interface
+├── run.py                   # CLI entry point
+├── config.py                # Settings (niches, pricing, agency info) — tracked
+├── config_local.py          # Your real API keys — gitignored, never committed
+├── config_local.example.py  # Template for config_local.py
+├── crm/                     # SQLite CRM (database + CLI commands)
+├── leads/                   # Business search, website analyzer, message generator
+├── outreach/                # Reusable email/phone/SMS/LinkedIn templates
+├── templates/               # Web UI (Jinja/HTML)
+└── data/                    # leads.db + CSV exports (gitignored)
 ```
+
+---
+
+## Security
+
+- **Never commit API keys.** Real secrets live only in `config_local.py` (gitignored).
+- `data/leads.db` (your leads' contact info) is gitignored and stays on your machine.
+- Keep `FLASK_DEBUG` off unless you're actively developing.

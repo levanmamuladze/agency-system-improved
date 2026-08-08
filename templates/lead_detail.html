@@ -143,7 +143,10 @@
                     <label class="form-label">Message</label>
                     <div class="output-box" id="msg-body"></div>
                 </div>
-                <button class="btn btn-success btn-sm" onclick="copyMessage()">📋 Copy to Clipboard</button>
+                <div class="flex gap-2">
+                    <button class="btn btn-success btn-sm" onclick="copyMessage()">📋 Copy to Clipboard</button>
+                    <button class="btn btn-warning btn-sm" onclick="logOutreach()">✓ Mark as Sent</button>
+                </div>
             </div>
         </div>
         
@@ -193,6 +196,7 @@
 {% block scripts %}
 <script>
 const leadId = {{ lead.id }};
+let lastGenerated = null;
 
 async function updateStatus(status) {
     const response = await api(`/api/leads/${leadId}/status`, 'PUT', { status });
@@ -255,8 +259,19 @@ async function generateMessage(type) {
         }
         
         document.getElementById('msg-body').textContent = response.body;
+        lastGenerated = { type: type, subject: response.subject || null, body: response.body };
     } else {
         alert('Failed: ' + response.error);
+    }
+}
+
+async function logOutreach() {
+    if (!lastGenerated) return;
+    const response = await api(`/api/leads/${leadId}/outreach`, 'POST', lastGenerated);
+    if (response.success) {
+        location.reload();
+    } else {
+        alert('Failed to log outreach: ' + response.error);
     }
 }
 
