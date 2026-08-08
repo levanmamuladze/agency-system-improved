@@ -173,14 +173,21 @@ def api_analyze():
     """Analyze a website."""
     data = request.json
     website = data.get('website')
-    
+    lead_id = data.get('lead_id')
+
     if not website:
         return jsonify({'error': 'Website URL required'}), 400
-    
+
     try:
         analyzer = WebsiteAnalyzer()
         result = analyzer.analyze(website)
-        
+
+        # Persist to the lead if this analysis was launched from a lead page
+        if lead_id:
+            db = LeadDatabase()
+            db.save_analysis(lead_id, result.to_dict())
+            db.close()
+
         return jsonify({
             'success': True,
             'score': result.score,
@@ -314,8 +321,8 @@ def api_save_batch():
                 source='google_places'
             )
             saved += 1
-        except:
-            pass
+        except Exception:
+            continue
     
     db.close()
     
@@ -327,8 +334,9 @@ def api_save_batch():
 # =============================================================================
 
 def init_db():
-    """Initialize database if needed."""
+    """Initialize database, creating tables if they don't exist yet."""
     db = LeadDatabase()
+    db.initialize()
     db.close()
 
 
@@ -336,4 +344,6 @@ if __name__ == '__main__':
     init_db()
     print("\n🚀 Agency System Web UI")
     print("   Open: http://localhost:5000\n")
-    app.run(debug=True, port=5000)
+    # Debug mode exposes the Werkzeug debugger (RCE risk). Opt in explicitly.
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "yes")
+    app.run(debug=debug, port=5000)

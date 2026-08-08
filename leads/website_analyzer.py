@@ -82,6 +82,7 @@ class AnalysisResult:
                     "name": i.name,
                     "description": i.description,
                     "severity": i.severity,
+                    "points": i.points_deducted,
                     "fix_suggestion": i.fix_suggestion
                 }
                 for i in self.issues

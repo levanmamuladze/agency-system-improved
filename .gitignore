@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local CRM data & secrets — do not commit
+data/leads.db
+data/exports/
+.env

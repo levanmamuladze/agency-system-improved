@@ -20,7 +20,7 @@ AGENCY_WEBSITE = "lmlabs.dev"
 AGENCY_EMAIL = "lmlabs.dev@gmail.com"
 AGENCY_PHONE = "+30 683 678 188"
 AGENCY_CALENDLY = "https://calendly.com/lmlabs-dev/30min"  # TODO: Create a Calendly and paste link here
-YOUR_NAME = "LMLabs"
+YOUR_NAME = "Levan"  # The person who signs the outreach (kept separate from AGENCY_NAME)
 
 DEFAULT_CITY = "Thessaloniki"
 DEFAULT_COUNTRY = "Greece"

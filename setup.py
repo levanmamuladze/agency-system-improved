@@ -51,6 +51,7 @@ def main():
         sys.path.insert(0, str(Path(__file__).parent))
         from crm.database import LeadDatabase
         db = LeadDatabase()
+        db.initialize()
         db.close()
         print("      Database initialized ✓")
     except Exception as e:

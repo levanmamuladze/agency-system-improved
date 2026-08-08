@@ -177,9 +177,9 @@
             {% if outreach %}
             {% for item in outreach %}
             <div style="padding: 12px 0; border-bottom: 1px solid var(--border);">
-                <span class="badge badge-info">{{ item.outreach_type }}</span>
+                <span class="badge badge-info">{{ item.type }}</span>
                 {% if item.subject %}<span class="text-sm ml-2">{{ item.subject }}</span>{% endif %}
-                <p class="text-sm text-muted mt-1">{{ item.created_at }}</p>
+                <p class="text-sm text-muted mt-1">{{ item.sent_at }}</p>
             </div>
             {% endfor %}
             {% else %}
@@ -204,8 +204,9 @@ async function updateStatus(status) {
 async function analyzeWebsite() {
     showLoading('Analyzing website...');
     
-    const response = await api('/api/analyze', 'POST', { 
-        website: '{{ lead.website }}'
+    const response = await api('/api/analyze', 'POST', {
+        website: {{ lead.website|tojson }},
+        lead_id: leadId
     });
     
     hideLoading();
@@ -225,16 +226,16 @@ async function generateMessage(type) {
     const issues = [];
     {% if analysis and analysis.issues %}
     {% for issue in analysis.issues %}
-    issues.push('{{ issue.description }}');
+    issues.push({{ issue.description|tojson }});
     {% endfor %}
     {% endif %}
     
     showLoading(language === 'el' ? 'Δημιουργία μηνύματος...' : 'Generating message...');
     
     const response = await api('/api/generate-message', 'POST', {
-        business_name: '{{ lead.name }}',
+        business_name: {{ lead.name|tojson }},
         owner_name: ownerName || null,
-        niche: '{{ lead.niche or "" }}',
+        niche: {{ (lead.niche or "")|tojson }},
         issues: issues,
         type: type,
         has_website: {{ 'true' if lead.website else 'false' }},
