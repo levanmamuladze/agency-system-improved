@@ -100,7 +100,7 @@ NICHES = [
     "dentist", "doctor", "clinic", "real_estate", "plumber", "electrician",
     "hvac", "landscaping", "cleaning", "lawyer", "accountant", "auto_repair",
     "pet_services", "photography", "bakery", "pharmacy", "hotel", "taverna",
-    "mechanic", "other",
+    "mechanic", "florist", "daycare", "insurance", "other",
 ]
 
 # =============================================================================

@@ -48,7 +48,9 @@ class BusinessSearcher:
     NICHES = {
         'barbershop': ['barber shop', 'barbershop', 'mens haircut'],
         'salon': ['hair salon', 'beauty salon', 'nail salon'],
-        'restaurant': ['restaurant', 'cafe', 'diner'],
+        'restaurant': ['restaurant', 'diner', 'eatery'],
+        'cafe': ['cafe', 'coffee shop', 'espresso bar'],
+        'taverna': ['taverna', 'greek tavern', 'meze restaurant'],
         'plumber': ['plumber', 'plumbing service', 'plumbing company'],
         'electrician': ['electrician', 'electrical contractor', 'electrical service'],
         'hvac': ['hvac', 'air conditioning', 'heating cooling'],
@@ -58,14 +60,14 @@ class BusinessSearcher:
         'dentist': ['dentist', 'dental office', 'dental clinic'],
         'gym': ['gym', 'fitness center', 'personal trainer'],
         'daycare': ['daycare', 'child care', 'preschool'],
-        'pet_grooming': ['pet grooming', 'dog grooming', 'pet salon'],
+        'pet_services': ['pet grooming', 'dog grooming', 'pet salon', 'veterinary'],
         'florist': ['florist', 'flower shop', 'floral'],
         'bakery': ['bakery', 'cake shop', 'pastry shop'],
         'photography': ['photographer', 'photography studio', 'photo studio'],
         'real_estate': ['real estate agent', 'realtor', 'real estate office'],
         'insurance': ['insurance agent', 'insurance agency'],
-        'accounting': ['accountant', 'cpa', 'tax preparer', 'bookkeeper'],
-        'legal': ['lawyer', 'attorney', 'law office'],
+        'accountant': ['accountant', 'cpa', 'tax preparer', 'bookkeeper'],
+        'lawyer': ['lawyer', 'attorney', 'law office'],
     }
     
     def __init__(self, api_key: str = None):

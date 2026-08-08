@@ -60,7 +60,9 @@ def dashboard():
 def search_page():
     """Business search page."""
     has_api_key = GOOGLE_PLACES_API_KEY and GOOGLE_PLACES_API_KEY != 'your-google-places-api-key'
-    return render_template('search.html', niches=BusinessSearcher.NICHES.keys(), has_api_key=has_api_key)
+    # Use the canonical niche taxonomy so search, CRM filters and the CLI all agree
+    searchable_niches = [n for n in NICHES if n != 'other']
+    return render_template('search.html', niches=searchable_niches, has_api_key=has_api_key)
 
 
 @app.route('/leads')

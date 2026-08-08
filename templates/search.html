@@ -122,6 +122,13 @@
 let searchResults = [];
 let selectedLeads = new Set();
 
+// Escape values before injecting into innerHTML (business data comes from an external API)
+function esc(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+}
+
 document.getElementById('search-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -182,13 +189,13 @@ function renderResults() {
             <div class="lead-name">
                 <input type="checkbox" id="check-${index}" onclick="event.stopPropagation(); toggleSelect(${index})" ${selectedLeads.has(index) ? 'checked' : ''}>
                 <span class="badge badge-${lead.priority}">${lead.priority === 'hot' ? '🔥 HOT' : lead.priority === 'warm' ? '🌡️ WARM' : '❄️ COLD'}</span>
-                ${lead.name}
+                ${esc(lead.name)}
             </div>
             <div class="lead-meta">
-                <span>📍 ${lead.address}</span>
-                ${lead.phone ? `<span>📞 ${lead.phone}</span>` : ''}
-                ${lead.website ? `<span>🌐 ${lead.website}</span>` : '<span class="text-danger">❌ No website</span>'}
-                <span>⭐ ${lead.rating || 'N/A'} (${lead.review_count || 0} reviews)</span>
+                <span>📍 ${esc(lead.address)}</span>
+                ${lead.phone ? `<span>📞 ${esc(lead.phone)}</span>` : ''}
+                ${lead.website ? `<span>🌐 ${esc(lead.website)}</span>` : '<span class="text-danger">❌ No website</span>'}
+                <span>⭐ ${esc(lead.rating || 'N/A')} (${esc(lead.review_count || 0)} reviews)</span>
             </div>
         </div>
     `).join('');
