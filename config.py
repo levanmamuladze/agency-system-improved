@@ -32,6 +32,16 @@ DEFAULT_COUNTRY = "Greece"
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "your-google-places-api-key")
 YELP_API_KEY = os.environ.get("YELP_API_KEY", "your-yelp-api-key")
 
+# Real keys live in config_local.py (gitignored, never committed). If that file
+# exists it overrides the placeholders above. Copy config_local.example.py to
+# config_local.py and paste your key there.
+try:
+    import config_local
+    GOOGLE_PLACES_API_KEY = getattr(config_local, "GOOGLE_PLACES_API_KEY", GOOGLE_PLACES_API_KEY)
+    YELP_API_KEY = getattr(config_local, "YELP_API_KEY", YELP_API_KEY)
+except ImportError:
+    pass
+
 # =============================================================================
 # SEARCH SETTINGS
 # =============================================================================

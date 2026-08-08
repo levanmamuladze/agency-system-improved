@@ -9,3 +9,4 @@ venv/
 data/leads.db
 data/exports/
 .env
+config_local.py
