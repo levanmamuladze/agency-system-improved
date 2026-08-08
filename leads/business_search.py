@@ -16,6 +16,7 @@ import os
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import GOOGLE_PLACES_API_KEY, SEARCH_SETTINGS
+from leads.site_utils import classify_web_presence
 
 
 @dataclass
@@ -195,49 +196,42 @@ class BusinessSearcher:
     
     def check_website_quality(self, url: str) -> str:
         """
-        Quick check of website quality.
-        
-        Returns: 'none', 'bad', 'basic', or 'good'
+        Quick check of a real website's quality.
+
+        Returns 'bad', 'basic', or 'good'. Social/directory/builder pages are
+        handled earlier via classify_web_presence, not here.
         """
         if not url:
             return 'none'
-            
+
         try:
             response = self.session.get(url, timeout=10, allow_redirects=True)
-            
-            if response.status_code != 200:
+
+            if response.status_code >= 400:
                 return 'bad'
-            
+
             html = response.text.lower()
-            
-            # Check for signs of a bad/basic website
-            bad_signs = [
-                'wix.com' in response.url,
-                'weebly.com' in response.url,
-                'squarespace.com' in response.url,
-                'godaddy' in response.url,
-                'under construction' in html,
-                'coming soon' in html,
-                'website coming' in html,
-                len(html) < 5000,  # Very short page
-            ]
-            
-            basic_signs = [
-                'wordpress' in html and 'theme' in html,
-                response.url.count('/') <= 3,  # Single page
-                'template' in html,
-            ]
-            
-            # Check for mobile responsiveness
-            has_viewport = 'viewport' in html
-            
-            if sum(bad_signs) >= 2:
+
+            # Parked / placeholder pages
+            if any(sign in html for sign in (
+                'under construction', 'coming soon', 'website coming', 'domain is for sale'
+            )):
                 return 'bad'
-            elif sum(basic_signs) >= 2 or not has_viewport:
+
+            # Template / DIY builders — detected from page assets, not the final
+            # URL (these platforms use custom domains, so a URL check never fired)
+            if any(marker in html for marker in (
+                'wixstatic.com', 'wix.com', 'squarespace.com', 'static1.squarespace.com',
+                'weebly.com', 'editmysite.com', 'godaddysites.com',
+            )):
                 return 'basic'
-            else:
-                return 'good'
-                
+
+            has_viewport = 'name="viewport"' in html or "name='viewport'" in html
+            if not has_viewport or len(html) < 1200:
+                return 'basic'
+
+            return 'good'
+
         except Exception:
             return 'bad'
     
@@ -294,22 +288,21 @@ class BusinessSearcher:
                     continue
                 
                 website = details.get('website', '')
-                has_website = bool(website)
-                
-                # Check website quality if enabled
-                if check_websites and has_website:
+                presence = classify_web_presence(website)  # none/social/directory/builder/site
+                has_website = presence == 'site'
+
+                # A social/directory/builder page (or nothing) means no real
+                # website -> these are the hottest leads.
+                if presence != 'site':
+                    website_quality = presence
+                    priority = 'hot'
+                elif check_websites:
                     website_quality = self.check_website_quality(website)
                     time.sleep(0.5)  # Be nice to servers
+                    priority = 'warm' if website_quality in ('bad', 'basic') else 'cold'
                 else:
-                    website_quality = 'none' if not has_website else 'unknown'
-                
-                # Determine priority
-                if not has_website:
-                    priority = 'hot'
-                elif website_quality in ['bad', 'basic']:
-                    priority = 'warm'
-                else:
-                    priority = 'cold'
+                    website_quality = 'unknown'
+                    priority = 'warm'  # real site we didn't assess — worth a look
                 
                 lead = BusinessLead(
                     name=details.get('name', ''),

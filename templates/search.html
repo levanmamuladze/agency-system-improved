@@ -129,6 +129,17 @@ function esc(value) {
     ));
 }
 
+// Human-readable note about the business's web presence
+function qualityLabel(q) {
+    return {
+        social: '⚠️ social page only — no real website',
+        directory: '⚠️ directory listing only — no real website',
+        builder: '⚠️ DIY builder page',
+        bad: 'poor / broken site',
+        basic: 'basic / template site',
+    }[q] || '';
+}
+
 document.getElementById('search-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     
@@ -195,6 +206,7 @@ function renderResults() {
                 <span>📍 ${esc(lead.address)}</span>
                 ${lead.phone ? `<span>📞 ${esc(lead.phone)}</span>` : ''}
                 ${lead.website ? `<span>🌐 ${esc(lead.website)}</span>` : '<span class="text-danger">❌ No website</span>'}
+                ${qualityLabel(lead.website_quality) ? `<span class="text-warning">${esc(qualityLabel(lead.website_quality))}</span>` : ''}
                 <span>⭐ ${esc(lead.rating || 'N/A')} (${esc(lead.review_count || 0)} reviews)</span>
             </div>
         </div>

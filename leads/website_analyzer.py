@@ -25,6 +25,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from config import SCORING_WEIGHTS, USER_AGENT, REQUEST_TIMEOUT
+from leads.site_utils import classify_web_presence, NON_SITE
 
 
 @dataclass
@@ -52,19 +53,24 @@ class AnalysisResult:
     has_cta: bool = False
     has_contact_info: bool = False
     is_reachable: bool = True
+    assessable: bool = True  # False when the site blocked us / returned an error page
     raw_html: str = ""
     
     @property
     def lead_quality(self) -> str:
         """Return lead quality rating based on score."""
+        if not self.is_reachable:
+            return "EXCELLENT"   # no working site at all
+        if not self.assessable:
+            return "UNKNOWN"     # blocked / errored — verify manually
         if self.score <= 30:
-            return "EXCELLENT"  # Website is terrible
+            return "EXCELLENT"   # Website is terrible
         elif self.score <= 50:
-            return "GOOD"       # Many issues
+            return "GOOD"        # Many issues
         elif self.score <= 70:
-            return "MAYBE"      # Some issues
+            return "MAYBE"       # Some issues
         else:
-            return "SKIP"       # Website is decent
+            return "SKIP"        # Website is decent
     
     @property
     def issue_summary(self) -> List[str]:
@@ -96,6 +102,7 @@ class AnalysisResult:
             "has_cta": self.has_cta,
             "has_contact_info": self.has_contact_info,
             "is_reachable": self.is_reachable,
+            "assessable": self.assessable,
         }
 
 
@@ -149,57 +156,71 @@ class WebsiteAnalyzer:
             AnalysisResult with score and issues
         """
         self._ensure_session()
-        
+
+        # A social profile, directory listing or free page-builder page is not a
+        # real website — scoring the platform's HTML would be meaningless.
+        presence = classify_web_presence(url)
+        if presence in NON_SITE:
+            result = AnalysisResult(url=url, score=15, is_reachable=True)
+            label = {
+                "social": "a social media page",
+                "directory": "a third-party listing page",
+                "builder": "a free page-builder page",
+            }[presence]
+            result.issues.append(WebsiteIssue(
+                name="no_real_website",
+                description=f"No standalone website — only {label}",
+                severity="critical",
+                points_deducted=85,
+                fix_suggestion="They need their own professional website",
+            ))
+            return result
+
         http_url, https_url = self._normalize_url(url)
         result = AnalysisResult(url=url, score=100)  # Start at 100
-        
-        # Try to fetch the page
-        html = ""
-        start_time = time.time()
-        
-        # First try HTTPS
-        try:
-            response = self.session.get(
-                https_url,
-                timeout=REQUEST_TIMEOUT,
-                allow_redirects=True
-            )
-            result.load_time = time.time() - start_time
-            result.has_ssl = True
-            html = response.text
-            result.raw_html = html
-            
-        except Exception:
-            # Try HTTP if HTTPS fails
+
+        # Try HTTPS first, then HTTP; remember which one answered.
+        response = None
+        for candidate, is_https in ((https_url, True), (http_url, False)):
             try:
                 start_time = time.time()
-                response = self.session.get(
-                    http_url,
-                    timeout=REQUEST_TIMEOUT,
-                    allow_redirects=True
-                )
+                response = self.session.get(candidate, timeout=REQUEST_TIMEOUT, allow_redirects=True)
                 result.load_time = time.time() - start_time
-                result.has_ssl = False
-                html = response.text
-                result.raw_html = html
-                
-            except Exception as e:
-                # Website is unreachable
-                result.is_reachable = False
-                result.score = 0  # Best lead - they have no working website!
-                result.issues.append(WebsiteIssue(
-                    name="unreachable",
-                    description="Website is not accessible",
-                    severity="critical",
-                    points_deducted=100,
-                    fix_suggestion="They need a completely new website"
-                ))
-                return result
-        
-        # Analyze the HTML
-        result = self._analyze_html(result, html)
-        
-        return result
+                result.has_ssl = is_https
+                break
+            except Exception:
+                response = None
+                continue
+
+        if response is None:
+            # Neither scheme answered: down, DNS failure, refused, or timed out.
+            result.is_reachable = False
+            result.score = 0  # likely no working website
+            result.issues.append(WebsiteIssue(
+                name="unreachable",
+                description="Site didn't respond (down, very slow, or blocking checks)",
+                severity="critical",
+                points_deducted=100,
+                fix_suggestion="Open it in a browser to confirm before reaching out",
+            ))
+            return result
+
+        if response.status_code >= 400:
+            # It answered with an error / challenge page — don't score that as
+            # their site (avoids calling a live, bot-blocking site "terrible").
+            result.is_reachable = True
+            result.assessable = False
+            result.issues.append(WebsiteIssue(
+                name="blocked_or_error",
+                description=f"Returned HTTP {response.status_code} — couldn't assess automatically",
+                severity="minor",
+                points_deducted=0,
+                fix_suggestion="Open the site in a browser to assess it manually",
+            ))
+            return result
+
+        result.raw_html = response.text
+        return self._analyze_html(result, response.text)
     
     def _analyze_html(self, result: AnalysisResult, html: str) -> AnalysisResult:
         """Analyze HTML content and update result."""
@@ -345,11 +366,16 @@ class WebsiteAnalyzer:
         if buttons:
             return True
         
-        # Look for links with CTA text
+        # Look for links with CTA text (English + Greek stems for inflections)
         cta_keywords = [
             'contact', 'book', 'call', 'schedule', 'get started',
             'buy', 'order', 'sign up', 'subscribe', 'learn more',
-            'get quote', 'free', 'appointment', 'reserve'
+            'get quote', 'free', 'appointment', 'reserve',
+            # Greek: επικοινωνία, κλείσε/κλείστε ραντεβού, κράτηση, παραγγελία,
+            # εγγραφή, μάθετε, καλέστε, τηλέφωνο, δωρεάν
+            'επικοινων', 'ραντεβού', 'ραντεβου', 'κλείσ', 'κρατησ', 'κράτησ',
+            'παραγγελ', 'εγγραφ', 'μάθετε', 'μαθετε', 'καλέστε', 'καλεστε',
+            'τηλεφων', 'τηλέφων', 'δωρεάν', 'δωρεαν',
         ]
         
         links = soup.find_all('a')
@@ -372,7 +398,8 @@ class WebsiteAnalyzer:
         # Phone number patterns
         phone_patterns = [
             r'\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}',  # US format
-            r'\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}',  # International
+            r'\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}',  # International (+30 ...)
+            r'\b(?:2\d|69)\d{2}[-.\s]?\d{6}\b',  # Greek landline/mobile: 2310 123456 / 6912 345678
         ]
         
         for pattern in phone_patterns:
@@ -411,10 +438,6 @@ class WebsiteAnalyzer:
         if len(tables) > 3:  # Multiple tables often = old layout
             outdated_indicators += 1
         
-        # Check for inline styles with old patterns
-        if 'font-family: Arial' in html or 'font-family: Times' in html:
-            outdated_indicators += 1
-        
         # Check for Flash references
         if 'swf' in html.lower() or 'flash' in html.lower():
             outdated_indicators += 2
@@ -438,24 +461,17 @@ class WebsiteAnalyzer:
         return outdated_indicators >= 2
     
     def _check_broken_images(self, soup) -> bool:
-        """Check for potentially broken images."""
-        images = soup.find_all('img')
-        
-        for img in images:
-            src = img.get('src', '')
-            
-            # Empty src
+        """Flag only genuinely empty image sources.
+
+        Missing alt text is an accessibility nit, not a broken image, and
+        flagging it fired on almost every real site — so we don't anymore.
+        """
+        for img in soup.find_all('img'):
+            src = (img.get('src') or '').strip()
             if not src or src == '#':
-                return True
-            
-            # Check for common broken patterns
-            if 'placeholder' in src.lower() or 'default' in src.lower():
-                continue  # These are intentional
-            
-            # Missing alt text is a sign of poor maintenance
-            if not img.get('alt') and len(images) > 3:
-                return True
-        
+                # Ignore lazy-loaded images that keep the real URL elsewhere.
+                if not (img.get('data-src') or img.get('data-lazy-src') or img.get('srcset')):
+                    return True
         return False
     
     def analyze_batch(self, urls: List[str]) -> List[AnalysisResult]:

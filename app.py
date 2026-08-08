@@ -154,6 +154,7 @@ def api_search():
                 'rating': lead.rating,
                 'review_count': lead.review_count,
                 'has_website': lead.has_website,
+                'website_quality': lead.website_quality,
                 'priority': lead.priority,
                 'place_id': lead.place_id,
                 'niche': lead.niche,
